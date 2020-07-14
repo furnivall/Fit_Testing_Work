@@ -7,6 +7,7 @@ import pandas as pd
 # read in data
 df = pd.read_csv('C:/Learnpro_Extracts/eform_data.csv')
 
+
 '''Drop columns as defined by CR - subject to change'''
 df = df.drop(columns=['Spectacles1st', 'Goggles1st', 'HearingAid1st', 'Other1st', 'Spectacles2nd',
        'Goggles2nd', 'HearingAid2nd', 'Other2nd', 'Spectacles3rd', 'Goggles3rd', 'HearingAid3rd','Other3rd',
@@ -44,6 +45,30 @@ def first_test(first_test_data):
 
     return first_test_data
 
+def date_changes(df):
+    '''Changes all date fields into datetimes, allowing them to be sorted etc'''
+    for date_field in ['Date Submitted', 'Date of staff FIT Test', 'Staff DOB']:
+        df[date_field] = pd.to_datetime(df[date_field], dayfirst=True)
+    return df
+
+def date_tests(df):
+    '''Find everyone who is outside of the allowed date range'''
+    print(df.columns)
+    future_testers = df[df['Date of staff FIT Test'] > df['Date Submitted']]
+    print(f'Number of tests occurring after submitted date : {len(future_testers)}')
+    return df
+
+def model_make_tests(df):
+    print(df['Make'].value_counts(dropna=False))
+    make_3m = df[df['Make'] == '3M']
+    print(len(make_3m))
+    print(make_3m['Model'].value_counts(dropna=False))
+    make_alphasolway = df[df['Make'] == 'Alpha Solway']
+    print(len(make_alphasolway))
+    make_arco = df[df['Make'] == 'Arco FFP3 NR D']
+
+    print(len(make_arco))
+
 # deal with all people with only one test (the easy ones)
 one_test = df[(df['Make2nd'].isnull()) & (df['Make3rd'].isnull())]
 data_onetest = first_test(one_test)
@@ -69,6 +94,15 @@ print(f'Final dataframe includes {len(final_data)} total tests from {len(df)} in
 
 # sort data
 final_data.sort_values(by='ID', inplace=True)
+
+# deal with dates
+final_data = date_changes(final_data)
+
+# run date tests
+date_tests(final_data)
+
+# run model/make tests
+model_make_tests(final_data)
 
 # build excel file
 final_data.to_excel('C:/Learnpro_Extracts/cameron_fit_test.xlsx', index=False)
