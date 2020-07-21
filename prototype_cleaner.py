@@ -2,10 +2,12 @@
 individual row. """
 
 import pandas as pd
-
+from datetime import timedelta
+import re
 
 # read in data
-df = pd.read_csv('C:/Learnpro_Extracts/eform_data.csv')
+df = pd.read_csv('Y:/eForm Returns/TodaysReferrals2020-07-09.csv')
+
 
 
 '''Drop columns as defined by CR - subject to change'''
@@ -56,18 +58,32 @@ def date_tests(df):
     print(df.columns)
     future_testers = df[df['Date of staff FIT Test'] > df['Date Submitted']]
     print(f'Number of tests occurring after submitted date : {len(future_testers)}')
-    return df
+    future_testers['Error'] = 'Error - fit test date in future'
+    three_years = df[(df['Date Submitted'] - df['Date of staff FIT Test']) / timedelta(days=365) > 3]
+    three_years['Error'] = 'Error - fit test date older than 3 years'
+
+    return future_testers, three_years
 
 def model_make_tests(df):
     print(df['Make'].value_counts(dropna=False))
-    make_3m = df[df['Make'] == '3M']
-    print(len(make_3m))
-    print(make_3m['Model'].value_counts(dropna=False))
-    make_alphasolway = df[df['Make'] == 'Alpha Solway']
-    print(len(make_alphasolway))
-    make_arco = df[df['Make'] == 'Arco FFP3 NR D']
+    wrong_make = df[~df['Make'].isin(['3M', 'Alpha Solway', 'Arco', 'Honeywell', 'UCAIR UFCH-P3V'])]
+    wrong_make['Error'] = "Error - mask Make incorrect/not provided"
 
-    print(len(make_arco))
+    wrong_model = df[~df['Model'].isin(['1863', '1863+', '1873V', '8833', '3030V', 'S-3V', '1A0600', 'SuperOne3208',
+                                        'UCAIR UCFH-P3V'])]
+    wrong_model['Error'] = 'Error - mask Model incorrect/not provided'
+    return wrong_make, wrong_model
+
+def regex_fields(df):
+    print(df.columns)
+    'Unique Identifier'
+    'National Insurance Number'
+    'eESS number'
+    NI_regex = re.compile('[A-CEGHJ-NOPR-TW-Z]{2}[0-9]{6}[ABCD\s]{1}')
+
+    eESS_regex = re.compile('[\d]{8}')
+    pay_number_regex = re.compile('[^a-z]{1}[\d]{7}')
+
 
 # deal with all people with only one test (the easy ones)
 one_test = df[(df['Make2nd'].isnull()) & (df['Make3rd'].isnull())]
@@ -99,10 +115,23 @@ final_data.sort_values(by='ID', inplace=True)
 final_data = date_changes(final_data)
 
 # run date tests
-date_tests(final_data)
+future_dates, three_years = date_tests(final_data)
 
 # run model/make tests
-model_make_tests(final_data)
+wrong_date, wrong_model = model_make_tests(final_data)
+
+# run regex tests
+regex_fields(final_data)
+
+errors = pd.DataFrame()
+for i in [wrong_date, wrong_model, future_dates, three_years]:
+    errors = errors.append(i, ignore_index=True)
+
+#add error sheet
+today = pd.Timestamp.now().strftime('%d-%m-%Y')
+with pd.ExcelWriter('Y:/Danny-Cleaned/'+today+'-cleaned_data.xlsx') as writer:
+    final_data.to_excel(writer, sheet_name='data', index=False)
+    errors.to_excel(writer, sheet_name='errors')
 
 # build excel file
-final_data.to_excel('C:/Learnpro_Extracts/cameron_fit_test.xlsx', index=False)
+
